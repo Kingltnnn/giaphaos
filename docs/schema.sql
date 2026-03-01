@@ -1,0 +1,488 @@
+-- ==========================================
+-- GIAPHA-OS DATABASE SCHEMA
+-- ==========================================
+
+-- EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- ENUMS
+-- Gender types for family members
+DO $$ BEGIN
+    CREATE TYPE public.gender_enum AS ENUM ('male', 'female', 'other');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Relationship types between family members
+DO $$ BEGIN
+    CREATE TYPE public.relationship_type_enum AS ENUM ('marriage', 'biological_child', 'adopted_child');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- System user roles
+DO $$ BEGIN
+    CREATE TYPE public.user_role_enum AS ENUM ('admin', 'editor', 'member');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- ==========================================
+-- UTILITY FUNCTIONS
+-- ==========================================
+
+-- Function to automatically update 'updated_at' timestamps
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- TABLES (Data Preservation: No DROP TABLE commands)
+-- ==========================================
+
+-- PROFILES (Application users linked to Auth)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  role public.user_role_enum DEFAULT 'member' NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PERSONS (Core entity for family tree)
+CREATE TABLE IF NOT EXISTS public.persons (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  gender public.gender_enum NOT NULL,
+  
+  -- Date components (allows for partial dates where only year is known)
+  birth_year INT,
+  birth_month INT,
+  birth_day INT,
+  death_year INT,
+  death_month INT,
+  death_day INT,
+  
+  is_deceased BOOLEAN NOT NULL DEFAULT FALSE,
+  is_in_law BOOLEAN NOT NULL DEFAULT FALSE,
+  birth_order INT,
+  generation INT,
+  avatar_url TEXT,
+  note TEXT,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add missing columns if table already existed
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='persons' AND column_name='generation') THEN
+        ALTER TABLE public.persons ADD COLUMN generation INT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='persons' AND column_name='birth_order') THEN
+        ALTER TABLE public.persons ADD COLUMN birth_order INT;
+    END IF;
+END $$;
+
+-- PERSON_DETAILS_PRIVATE (Sensitive data with restricted RLS)
+CREATE TABLE IF NOT EXISTS public.person_details_private (
+  person_id UUID REFERENCES public.persons(id) ON DELETE CASCADE PRIMARY KEY,
+  phone_number TEXT,
+  occupation TEXT,
+  current_residence TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RELATIONSHIPS (Links between persons)
+CREATE TABLE IF NOT EXISTS public.relationships (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  type public.relationship_type_enum NOT NULL,
+  person_a UUID REFERENCES public.persons(id) ON DELETE CASCADE NOT NULL,
+  person_b UUID REFERENCES public.persons(id) ON DELETE CASCADE NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Prevent self-relationships
+  CONSTRAINT no_self_relationship CHECK (person_a != person_b),
+  
+  -- Ensure unique relationships between pairs for a specific type
+  UNIQUE(person_a, person_b, type)
+);
+
+-- ==========================================
+-- INDEXES
+-- ==========================================
+
+-- Relationship lookups
+CREATE INDEX IF NOT EXISTS idx_relationships_person_a ON public.relationships(person_a);
+CREATE INDEX IF NOT EXISTS idx_relationships_person_b ON public.relationships(person_b);
+CREATE INDEX IF NOT EXISTS idx_relationships_type ON public.relationships(type);
+
+-- Person filtering and sorting
+CREATE INDEX IF NOT EXISTS idx_persons_full_name ON public.persons(full_name);
+CREATE INDEX IF NOT EXISTS idx_persons_generation ON public.persons(generation);
+CREATE INDEX IF NOT EXISTS idx_persons_gender ON public.persons(gender);
+CREATE INDEX IF NOT EXISTS idx_persons_is_deceased ON public.persons(is_deceased);
+CREATE INDEX IF NOT EXISTS idx_persons_birth_year ON public.persons(birth_year);
+
+-- Profile lookups
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_is_active ON public.profiles(is_active);
+
+-- ==========================================
+-- RLS POLICIES
+-- ==========================================
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.persons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.person_details_private ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.relationships ENABLE ROW LEVEL SECURITY;
+
+-- Helper function to check if user is admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- PROFILES POLICIES
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
+CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (public.is_admin());
+
+-- PERSONS POLICIES
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.persons;
+CREATE POLICY "Enable read access for all users" ON public.persons FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins can insert persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins can update persons" ON public.persons;
+DROP POLICY IF EXISTS "Admins can delete persons" ON public.persons;
+
+CREATE POLICY "Anyone can insert persons" ON public.persons FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update persons" ON public.persons FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete persons" ON public.persons FOR DELETE USING (true);
+
+-- PERSON_DETAILS_PRIVATE POLICIES
+DROP POLICY IF EXISTS "Admins can view private details" ON public.person_details_private;
+CREATE POLICY "Anyone can view private details" ON public.person_details_private FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage private details" ON public.person_details_private;
+CREATE POLICY "Anyone can manage private details" ON public.person_details_private FOR ALL USING (true);
+
+-- RELATIONSHIPS POLICIES
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.relationships;
+CREATE POLICY "Enable read access for all users" ON public.relationships FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins can insert relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins can update relationships" ON public.relationships;
+DROP POLICY IF EXISTS "Admins can delete relationships" ON public.relationships;
+
+CREATE POLICY "Anyone can insert relationships" ON public.relationships FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update relationships" ON public.relationships FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete relationships" ON public.relationships FOR DELETE USING (true);
+
+-- CUSTOM_EVENTS (User-defined events)
+CREATE TABLE IF NOT EXISTS public.custom_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  event_day INT NOT NULL,
+  event_month INT NOT NULL,
+  event_year INT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- CUSTOM_EVENTS POLICIES
+ALTER TABLE public.custom_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.custom_events;
+CREATE POLICY "Enable read access for all users" ON public.custom_events FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Anyone can insert custom_events" ON public.custom_events;
+CREATE POLICY "Anyone can insert custom_events" ON public.custom_events FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Anyone can update custom_events" ON public.custom_events;
+CREATE POLICY "Anyone can update custom_events" ON public.custom_events FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Anyone can delete custom_events" ON public.custom_events;
+CREATE POLICY "Anyone can delete custom_events" ON public.custom_events FOR DELETE USING (true);
+
+-- PUSH_SUBSCRIPTIONS (For Web Push Notifications)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  subscription JSONB NOT NULL,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- PUSH_SUBSCRIPTIONS POLICIES
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.push_subscriptions;
+CREATE POLICY "Enable read access for all users" ON public.push_subscriptions FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Anyone can insert push_subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Anyone can insert push_subscriptions" ON public.push_subscriptions FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Anyone can update push_subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Anyone can update push_subscriptions" ON public.push_subscriptions FOR UPDATE USING (true);
+
+DROP POLICY IF EXISTS "Anyone can delete push_subscriptions" ON public.push_subscriptions;
+CREATE POLICY "Anyone can delete push_subscriptions" ON public.push_subscriptions FOR DELETE USING (true);
+
+-- Trigger for push_subscriptions updated_at
+DROP TRIGGER IF EXISTS tr_push_subscriptions_updated_at ON public.push_subscriptions;
+CREATE TRIGGER tr_push_subscriptions_updated_at BEFORE UPDATE ON public.push_subscriptions FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+
+-- ==========================================
+-- TRIGGERS
+-- ==========================================
+
+-- 1. Updated At Triggers
+DROP TRIGGER IF EXISTS tr_profiles_updated_at ON public.profiles;
+CREATE TRIGGER tr_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS tr_persons_updated_at ON public.persons;
+CREATE TRIGGER tr_persons_updated_at BEFORE UPDATE ON public.persons FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS tr_person_details_private_updated_at ON public.person_details_private;
+CREATE TRIGGER tr_person_details_private_updated_at BEFORE UPDATE ON public.person_details_private FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS tr_relationships_updated_at ON public.relationships;
+CREATE TRIGGER tr_relationships_updated_at BEFORE UPDATE ON public.relationships FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();
+
+-- 2. Handle new user signup (Profile creation)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger 
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public, auth
+AS $$
+DECLARE
+  is_first_user boolean;
+BEGIN
+  -- Check if this is the first user (count will be 1 as this is AFTER INSERT)
+  SELECT count(*) = 1 FROM auth.users INTO is_first_user;
+
+  INSERT INTO public.profiles (id, role, is_active)
+  VALUES (
+    new.id, 
+    CASE WHEN is_first_user THEN 'admin'::public.user_role_enum ELSE 'member'::public.user_role_enum END,
+    true
+  );
+
+  UPDATE public.profiles 
+  SET is_active = true 
+  WHERE id = new.id AND is_first_user = true;
+
+  RETURN new;
+END;
+$$;
+
+-- 3. Auto-confirm first user (Email verification)
+CREATE OR REPLACE FUNCTION public.handle_first_user_confirmation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = auth
+AS $$
+BEGIN
+  -- If no users exist yet, auto-confirm this first one
+  IF NOT EXISTS (SELECT 1 FROM auth.users) THEN
+    NEW.email_confirmed_at := NOW();
+    NEW.last_sign_in_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger for profile creation
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Trigger for auto-confirmation
+DROP TRIGGER IF EXISTS on_auth_user_created_confirm ON auth.users;
+CREATE TRIGGER on_auth_user_created_confirm
+  BEFORE INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_first_user_confirmation();
+
+-- ==========================================
+-- STORAGE POLICIES
+-- ==========================================
+
+-- Initialize 'avatars' bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('avatars', 'avatars', true) 
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Avatar images are publicly accessible." ON storage.objects;
+CREATE POLICY "Avatar images are publicly accessible." ON storage.objects FOR SELECT USING ( bucket_id = 'avatars' );
+
+DROP POLICY IF EXISTS "Users can upload avatars." ON storage.objects;
+CREATE POLICY "Anyone can upload avatars." ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'avatars' );
+
+DROP POLICY IF EXISTS "Users can update avatars." ON storage.objects;
+CREATE POLICY "Anyone can update avatars." ON storage.objects FOR UPDATE USING ( bucket_id = 'avatars' );
+
+DROP POLICY IF EXISTS "Users can delete avatars." ON storage.objects;
+CREATE POLICY "Anyone can delete avatars." ON storage.objects FOR DELETE USING ( bucket_id = 'avatars' );
+
+-- ==========================================
+-- ADMIN RPC FUNCTIONS
+-- ==========================================
+
+-- Custom type for get_admin_users
+DROP TYPE IF EXISTS public.admin_user_data CASCADE;
+CREATE TYPE public.admin_user_data AS (
+    id uuid,
+    email text,
+    role public.user_role_enum,
+    created_at timestamptz,
+    is_active boolean
+);
+
+-- 1. Get List of Users for Admin
+CREATE OR REPLACE FUNCTION public.get_admin_users()
+RETURNS SETOF public.admin_user_data
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+        RAISE EXCEPTION 'Access denied.';
+    END IF;
+
+    RETURN QUERY
+    SELECT au.id, au.email::text, p.role, au.created_at, p.is_active
+    FROM auth.users au
+    LEFT JOIN public.profiles p ON au.id = p.id
+    ORDER BY au.created_at DESC;
+END;
+$$;
+
+-- 2. Update User Role
+CREATE OR REPLACE FUNCTION public.set_user_role(target_user_id uuid, new_role text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+        RAISE EXCEPTION 'Access denied.';
+    END IF;
+
+    UPDATE public.profiles
+    SET role = new_role::public.user_role_enum
+    WHERE id = target_user_id;
+END;
+$$;
+
+-- 3. Delete User Account
+CREATE OR REPLACE FUNCTION public.delete_user(target_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+        RAISE EXCEPTION 'Access denied.';
+    END IF;
+    
+    IF auth.uid() = target_user_id THEN
+        RAISE EXCEPTION 'Cannot delete yourself.';
+    END IF;
+
+    DELETE FROM auth.users WHERE id = target_user_id;
+END;
+$$;
+
+-- 4. Admin Create New User
+-- IMPORTANT: All token/string columns MUST be set to '' (empty string), NOT NULL.
+-- Supabase Auth's Go scanner crashes with "converting NULL to string is unsupported"
+-- if any of these fields are NULL.
+DROP FUNCTION IF EXISTS public.admin_create_user(text, text, text, boolean);
+CREATE OR REPLACE FUNCTION public.admin_create_user(
+  new_email text, 
+  new_password text, 
+  new_role text,
+  new_active boolean
+)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth', 'extensions'
+AS $function$
+DECLARE
+    new_id uuid;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+        RAISE EXCEPTION 'Access denied.';
+    END IF;
+
+    new_id := gen_random_uuid();
+
+    INSERT INTO auth.users (
+        id, instance_id, aud, role, email, encrypted_password, 
+        email_confirmed_at,         -- Auto-verify: skip email confirmation
+        confirmation_token,         -- Must be '' not NULL (Supabase Auth Go scanner)
+        recovery_token,             -- Must be '' not NULL
+        email_change_token_new,     -- Must be '' not NULL
+        email_change_token_current, -- Must be '' not NULL
+        reauthentication_token,     -- Must be '' not NULL
+        email_change,               -- Must be '' not NULL
+        phone_change,               -- Must be '' not NULL
+        phone_change_token,         -- Must be '' not NULL
+        raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    )
+    VALUES (
+        new_id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+        new_email, extensions.crypt(new_password, extensions.gen_salt('bf')),
+        now(),
+        '', '', '', '', '', '', '', '',
+        '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    );
+
+    INSERT INTO public.profiles (id, role, is_active, created_at, updated_at)
+    VALUES (new_id, new_role::public.user_role_enum, new_active, now(), now())
+    ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, is_active = EXCLUDED.is_active;
+    
+    RETURN new_id;
+END;
+$function$;
+
+-- 5. Set User Active Status (Approve/Block)
+CREATE OR REPLACE FUNCTION public.set_user_active_status(target_user_id uuid, new_status boolean)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin') THEN
+        RAISE EXCEPTION 'Access denied.';
+    END IF;
+
+    UPDATE public.profiles
+    SET is_active = new_status
+    WHERE id = target_user_id;
+END;
+$$;
