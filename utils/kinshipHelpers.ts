@@ -131,11 +131,9 @@ function resolveBloodTerms(
   // 1. QUAN HỆ TRỰC HỆ (A là con cháu B hoặc ngược lại)
   if (depthA === 0) {
     // A chính là LCA. B là con cháu của A.
-    // Xác định vế Nội/Ngoại của B đối với A: Dựa vào người con đầu tiên của A trên đường tới B
-    const firstChildOfA = pathB[pathB.length - 1];
-    if (!firstChildOfA) return ["Hậu duệ", "Tiền bối", "Quan hệ Trực hệ"];
-
-    const isPaternal = firstChildOfA.gender === "male";
+    // Xác định vế Nội/Ngoại của A đối với B: Dựa vào người cha/mẹ trực tiếp của B
+    const parentOfB = pathB[1];
+    const isPaternal = parentOfB ? parentOfB.gender === "male" : true;
 
     const bCallsA = getDirectAncestorTerm(depthB, genderA, isPaternal);
     const aCallsB = getDirectDescendantTerm(depthB, genderB);
@@ -144,10 +142,8 @@ function resolveBloodTerms(
 
   if (depthB === 0) {
     // B chính là LCA. A là con cháu của B.
-    const firstChildOfB = pathA[pathA.length - 1];
-    if (!firstChildOfB) return ["Tiền bối", "Hậu duệ", "Quan hệ Trực hệ"];
-
-    const isPaternal = firstChildOfB.gender === "male";
+    const parentOfA = pathA[1];
+    const isPaternal = parentOfA ? parentOfA.gender === "male" : true;
 
     const aCallsB = getDirectAncestorTerm(depthA, genderB, isPaternal);
     const bCallsA = getDirectDescendantTerm(depthA, genderA);
@@ -160,10 +156,10 @@ function resolveBloodTerms(
 
   if (!branchA || !branchB) return ["Họ hàng", "Họ hàng", "Quan hệ họ hàng"];
 
+  // Xác định vế Nội/Ngoại: Dựa vào giới tính của người cha/mẹ trực tiếp của A (nếu có)
+  const parentOfA = pathA[1];
+  const isPaternalA = parentOfA ? parentOfA.gender === "male" : branchA.gender === "male";
   const seniority = compareSeniority(branchA, branchB);
-
-  // Xác định vế Nội/Ngoại: Dựa vào giới tính của người ở nhánh A (người đang gọi)
-  const isPaternalA = branchA.gender === "male";
 
   // Anh chị em ruột (Cùng bố mẹ)
   if (depthA === 1 && depthB === 1) {
@@ -183,38 +179,46 @@ function resolveBloodTerms(
     }
   }
 
-  // Chú/Bác/Cô/Cậu/Dì (Vế trên - Vế dưới)
+  // Chú/Bác/Cô/Cậu/Dì/Ông/Bà (Vế trên - Vế dưới)
   if (depthA > 1 && depthB === 1) {
-    // B là anh/chị/em của tổ tiên A
+    const genDiff = depthA - depthB;
     let termForB = "";
-    const isPaternalSide = branchA.gender === "male";
+    let termForA = "";
 
-    if (isPaternalSide) {
-      // Bên Nội (Anh em của bố)
-      if (genderB === "female") {
-        termForB = "Cô";
+    if (genDiff === 1) {
+      // B là anh/chị/em của Bố/Mẹ A
+      const ancestorAtDepthMinus1 = pathA[pathA.length - 2] || branchA;
+      const isMaleAncestor = ancestorAtDepthMinus1.gender === "male";
+      if (isMaleAncestor) {
+        if (genderB === "female") termForB = "Cô";
+        else termForB = seniority === "senior" ? "Chú" : "Bác";
       } else {
-        termForB = seniority === "senior" ? "Chú" : "Bác";
+        if (genderB === "female") termForB = "Dì";
+        else termForB = "Cậu";
       }
+      termForA = "Cháu";
+    } else if (genDiff === 2) {
+      // B là anh/chị/em của Ông/Bà A
+      // Người dùng yêu cầu chỉ gọi là "Ông/Bà"
+      termForB = genderB === "female" ? "Bà" : "Ông";
+      termForA = "Cháu";
     } else {
-      // Bên Ngoại (Anh em của mẹ)
-      if (genderB === "female") {
-        termForB = "Dì";
+      // B là anh/chị/em của Cụ/Kỵ... A
+      const baseTerm = ANCESTORS[genDiff] || `Tổ đời ${genDiff}`;
+      if (genDiff === 3) {
+        termForB = genderB === "female" ? "Cụ bà" : "Cụ ông";
       } else {
-        termForB = "Cậu";
+        termForB = baseTerm;
       }
+      termForA = DESCENDANTS[genDiff];
     }
 
-    // Nếu cách nhiều đời (ví dụ B là anh của ông nội)
-    let prefix = "";
-    if (depthA === 3) prefix = genderB === "female" ? "Bà " : "Ông ";
-    else if (depthA === 4) prefix = genderB === "female" ? "Cụ bà " : "Cụ ông ";
-    else if (depthA > 4) prefix = ANCESTORS[depthA - 1] + " ";
+    const suffix = genderA === "male" ? " trai" : genderA === "female" ? " gái" : "";
 
     return [
-      (prefix + termForB).trim(),
-      getDirectDescendantTerm(depthA, genderA),
-      isPaternalSide ? "Bên Nội (Vế trên)" : "Bên Ngoại (Vế trên)",
+      termForB,
+      termForA + suffix,
+      isPaternalA ? "Bên Nội (Vế trên)" : "Bên Ngoại (Vế trên)",
     ];
   }
 
@@ -257,8 +261,7 @@ function resolveBloodTerms(
         // B ở vế trên
         let termForB = "Họ hàng";
         if (genDiff === 1) {
-          const isPaternalSide = branchA.gender === "male";
-          if (isPaternalSide) {
+          if (isPaternalA) {
             termForB =
               genderB === "female"
                 ? "Cô họ"

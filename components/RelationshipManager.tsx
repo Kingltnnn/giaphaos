@@ -11,6 +11,7 @@ import DefaultAvatar from "./DefaultAvatar";
 
 interface RelationshipManagerProps {
   personId: string;
+  personName: string; // Added to clarify labels
   isAdmin: boolean;
   canEdit?: boolean;
   personGender: string; // Passed down to calculate default spouse gender
@@ -26,6 +27,7 @@ interface EnrichedRelationship {
 
 export default function RelationshipManager({
   personId,
+  personName,
   isAdmin,
   canEdit = false,
   personGender,
@@ -139,23 +141,34 @@ export default function RelationshipManager({
         .map((r) => r.targetPerson.id);
 
       if (childrenIds.length > 0) {
-        const { data: childrenMarriages } = await supabase
+        // Use a more robust query for marriages
+        const { data: childrenMarriages, error: marriageError } = await supabase
           .from("relationships")
           .select(
-            `*, person_a_data:persons!person_a(*), person_b_data:persons!person_b(*)`,
+            `id, type, person_a, person_b, note, 
+             person_a_data:persons!person_a(*), 
+             person_b_data:persons!person_b(*)`,
           )
           .eq("type", "marriage")
           .or(
             `person_a.in.(${childrenIds.join(",")}),person_b.in.(${childrenIds.join(",")})`,
           );
 
-        if (childrenMarriages) {
+        if (marriageError) {
+          console.error("Error fetching children marriages:", marriageError);
+        } else if (childrenMarriages) {
           childrenMarriages.forEach((m) => {
             const isAChild = childrenIds.includes(m.person_a);
-            const childPerson = isAChild ? m.person_a_data : m.person_b_data;
-            const spousePerson = isAChild ? m.person_b_data : m.person_a_data;
+            const childPerson = (isAChild ? m.person_a_data : m.person_b_data) as unknown as Person;
+            const spousePerson = (isAChild ? m.person_b_data : m.person_a_data) as unknown as Person;
 
             if (spousePerson && childPerson) {
+              // Avoid adding if already in relationships (e.g. if spouse is already linked directly)
+              const alreadyExists = formattedRels.some(
+                (r) => r.targetPerson.id === spousePerson.id,
+              );
+              if (alreadyExists) return;
+
               const spouseGender = spousePerson.gender;
               let noteLabel = `Vợ/chồng của ${childPerson.full_name}`;
               if (spouseGender === "female")
@@ -667,9 +680,15 @@ export default function RelationshipManager({
                   }
                   className="bg-white text-stone-900 placeholder-stone-400 block w-full text-sm rounded-md sm:rounded-lg border-stone-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 p-2 sm:p-2.5 border transition-colors"
                 >
-                  <option value="parent">Người này là Con của...</option>
-                  <option value="spouse">Người này là Vợ/Chồng của...</option>
-                  <option value="child">Người này là Bố/Mẹ của...</option>
+                  <option value="parent">
+                    {personName} là CON của...
+                  </option>
+                  <option value="spouse">
+                    {personName} là VỢ/CHỒNG của...
+                  </option>
+                  <option value="child">
+                    {personName} là BỐ/MẸ của...
+                  </option>
                 </select>
               </div>
             </div>

@@ -42,8 +42,8 @@ export default function MemberDetailModal() {
       setError(null);
       try {
         // 1. Check auth / role
-        let currentIsAdmin = true;
-        let currentCanEdit = true;
+        const currentIsAdmin = true;
+        const currentCanEdit = true;
         if (!authChecked) {
           setIsAdmin(currentIsAdmin);
           setCanEdit(currentCanEdit);
