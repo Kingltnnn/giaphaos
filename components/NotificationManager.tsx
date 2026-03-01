@@ -31,7 +31,7 @@ export default function NotificationManager() {
     setLoading(true)
     try {
       // Check if added to home screen (iOS requirement)
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
       
       if (isIOS && !isStandalone) {
@@ -41,6 +41,15 @@ export default function NotificationManager() {
       }
 
       const registration = await navigator.serviceWorker.ready
+      
+      // Explicitly request permission for iOS
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        alert('Bạn cần cấp quyền thông báo trong cài đặt trình duyệt để tiếp tục.')
+        setLoading(false)
+        return
+      }
+
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
 
       if (!vapidPublicKey) {
@@ -63,7 +72,7 @@ export default function NotificationManager() {
       if (error) throw error
 
       setIsSubscribed(true)
-      setPermission(Notification.permission)
+      setPermission(permission) // Use the permission we just got
       alert('Đã đăng ký nhận thông báo thành công!')
     } catch (error) {
       console.error('Push subscription error:', error)
@@ -94,7 +103,21 @@ export default function NotificationManager() {
     }
   }
 
-  if (!isSupported) return null
+  if (!isSupported) {
+    return (
+      <div className="bg-stone-50 rounded-3xl p-6 border border-stone-200 border-dashed flex flex-col items-center justify-center text-center gap-3">
+        <div className="p-2 rounded-xl bg-stone-100 text-stone-400">
+          <BellOff className="size-5" />
+        </div>
+        <div>
+          <h3 className="font-serif font-bold text-stone-800 text-sm">Thông báo không khả dụng</h3>
+          <p className="text-[11px] text-stone-500 mt-1 max-w-[200px]">
+            Trình duyệt hoặc phiên bản iOS của bạn quá cũ để hỗ trợ thông báo đẩy. (Yêu cầu iOS 16.4+)
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white/50 rounded-3xl p-6 border border-stone-200/50 space-y-4">

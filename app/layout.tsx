@@ -15,6 +15,7 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: config.siteName,
   description: config.siteName,
+  manifest: "/site.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
