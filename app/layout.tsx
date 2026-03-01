@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: config.siteName,
   description: config.siteName,
   manifest: "/site.webmanifest",
+  icons: {
+    icon: "https://i.ibb.co/dwPMhSQz/unnamed.jpg",
+    apple: "https://i.ibb.co/dwPMhSQz/unnamed.jpg",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

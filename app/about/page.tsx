@@ -35,8 +35,8 @@ export default function AboutPage() {
 
             <div className="max-w-none">
               <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-                <strong className="text-stone-800">Gia Phả OS</strong> là một
-                giải pháp mã nguồn mở được thiết kế giúp các dòng họ, gia đình
+                <strong className="text-stone-800">Gia Phả Họ Lê</strong> là một
+                giải pháp được thiết kế giúp dòng họ Lê
                 tự xây dựng và quản lý cây phả hệ của riêng mình. Dự án giúp bảo
                 tồn và truyền đạt lại thông tin cội nguồn một cách trực quan,
                 hiện đại, và đặc biệt là an toàn.
@@ -47,52 +47,35 @@ export default function AboutPage() {
                   <ShieldAlert className="size-5" />
                 </div>
                 <h2 className="text-xl font-bold text-stone-900">
-                  Tuyên bố từ chối trách nhiệm & Quyền riêng tư
+                  Thông tin dự án & Quyền riêng tư
                 </h2>
               </div>
 
               <div className="bg-stone-50 border border-stone-200/60 rounded-2xl p-6 text-[14.5px] leading-relaxed">
                 <p className="font-bold text-stone-800 mb-4 bg-white py-2 px-3 rounded-lg border border-stone-200 shadow-sm inline-block">
-                  Dự án này chỉ cung cấp mã nguồn (source code). Không có bất kỳ
-                  dữ liệu cá nhân nào được thu thập hay lưu trữ bởi tác giả.
+                  Dự án được soạn thảo và quản lý bởi Lê Tú Nam (01/03/2026).
                 </p>
 
                 <ul className="space-y-4 text-stone-600 list-disc pl-5">
                   <li>
                     <strong className="text-stone-800">
-                      Tự lưu trữ hoàn toàn (Self-hosted):
+                      Mục đích:
                     </strong>{" "}
-                    Khi bạn triển khai ứng dụng, toàn bộ dữ liệu gia phả (tên,
-                    ngày sinh, quan hệ, thông tin liên hệ...) được lưu trữ{" "}
-                    <strong className="text-stone-800">
-                      trong tài khoản Supabase của chính bạn
-                    </strong>
-                    . Tác giả dự án không có quyền truy cập vào database đó.
+                    Gìn giữ và lưu truyền những giá trị, cội nguồn và truyền thống tốt
+                    đẹp của dòng họ Lê cho các thế hệ mai sau.
                   </li>
                   <li>
                     <strong className="text-stone-800">
-                      Không thu thập dữ liệu:
+                      Bảo mật dữ liệu:
                     </strong>{" "}
-                    Không có analytics, không có tracking, không có telemetry,
-                    không có bất kỳ hình thức thu thập thông tin người dùng nào
-                    được tích hợp trong mã nguồn.
+                    Toàn bộ dữ liệu gia phả (tên, ngày sinh, quan hệ, thông tin liên hệ...) được lưu trữ 
+                    bảo mật trên hệ thống đám mây riêng của dòng họ.
                   </li>
                   <li>
                     <strong className="text-stone-800">
-                      Bạn kiểm soát dữ liệu của bạn:
+                      Quyền hạn:
                     </strong>{" "}
-                    Mọi dữ liệu gia đình, thông tin thành viên đều nằm hoàn toàn
-                    trong cơ sở dữ liệu Supabase mà bạn tạo và quản lý. Bạn có
-                    thể xóa, xuất hoặc di chuyển dữ liệu bất cứ lúc nào.
-                  </li>
-                  <li>
-                    <strong className="text-stone-800">Demo công khai:</strong>{" "}
-                    Trang demo tại{" "}
-                    <code className="bg-white border border-stone-200 px-1 py-0.5 rounded text-[13px] text-amber-700">
-                      giapha-os.homielab.com
-                    </code>{" "}
-                    sử dụng dữ liệu mẫu hư cấu, không chứa thông tin của người
-                    thật. Không nên nhập thông tin cá nhân thật vào trang demo.
+                    Chỉ những thành viên được cấp quyền mới có thể xem và chỉnh sửa thông tin nhạy cảm.
                   </li>
                 </ul>
               </div>
@@ -102,19 +85,19 @@ export default function AboutPage() {
                   <Mail className="size-5" />
                 </div>
                 <h2 className="text-xl font-bold text-stone-900">
-                  Liên hệ & Góp ý
+                  Liên hệ & Đóng góp
                 </h2>
               </div>
 
               <p className="text-stone-600 leading-relaxed text-[15px] mb-8">
-                Nếu bạn có bất kỳ thắc mắc, đề xuất tính năng, báo lỗi khi sử
-                dụng phần mềm, hoặc muốn thảo luận thì xin vui lòng gửi email về
-                địa chỉ:{` `}
+                Nếu bạn có bất kỳ thắc mắc, thông tin cần cập nhật hoặc đóng góp ý kiến cho gia phả dòng họ, 
+                vui lòng liên hệ trực tiếp với quản trị viên qua email:
+                <br />
                 <a
-                  href="mailto:giaphaos@homielab.com"
+                  href="namdigital49@gmail.com"
                   className="font-semibold text-amber-700 hover:text-amber-600 transition-colors inline-flex items-center gap-1.5 mt-2"
                 >
-                  giaphaos@homielab.com
+                  namdigital49@gmail.com
                 </a>
               </p>
             </div>

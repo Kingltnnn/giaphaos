@@ -11,7 +11,7 @@ export default function ViewToggle() {
 
   const tabs = [
     { id: "list", label: "Danh sách", icon: <List className="size-3.5" /> },
-    { id: "tree", label: "Sơ đồ cây", icon: <Network className="size-3.5" /> },
+    { id: "tree", label: "Gia phả", icon: <Network className="size-3.5" /> },
     { id: "mindmap", label: "Mindmap", icon: <ListTree className="size-3.5" /> },
   ] as const;
 
