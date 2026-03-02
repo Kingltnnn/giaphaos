@@ -36,8 +36,9 @@ export async function POST() {
               url: "/dashboard/events"
             })
           );
-        } catch (err: any) {
-          if (err.statusCode === 410 || err.statusCode === 404) {
+        } catch (err: unknown) {
+          const error = err as { statusCode?: number };
+          if (error.statusCode === 410 || error.statusCode === 404) {
             // Subscription expired or no longer valid, delete it
             await supabase.from("push_subscriptions").delete().eq("id", sub.id);
           }
@@ -47,7 +48,8 @@ export async function POST() {
     );
 
     return NextResponse.json({ results });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

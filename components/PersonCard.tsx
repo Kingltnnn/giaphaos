@@ -97,6 +97,11 @@ export default function PersonCard({ person }: PersonCardProps) {
                   Đã mất
                 </span>
               )}
+              {!isDeceased && person.birth_year && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 uppercase tracking-widest border border-amber-200/60 shadow-xs">
+                  {new Date().getFullYear() - person.birth_year} tuổi
+                </span>
+              )}
               {person.is_in_law && (
                 <span
                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest shadow-xs border ${

@@ -197,6 +197,32 @@ const MindmapNode = memo(
                       <span className="font-bold text-[14px] text-stone-900 group-hover/card:text-amber-700 transition-colors leading-tight truncate mb-0.5">
                         {data.person.full_name}
                       </span>
+                      
+                      <div className="flex flex-wrap items-center gap-1 mb-1">
+                        {data.person.is_deceased ? (
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-400 border border-stone-200/60 leading-none uppercase tracking-tight">
+                            Đã mất
+                          </span>
+                        ) : (
+                          data.person.birth_year && (
+                            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 leading-none uppercase tracking-tight">
+                              {new Date().getFullYear() - data.person.birth_year} tuổi
+                            </span>
+                          )
+                        )}
+                        {data.person.is_in_law && (
+                          <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border leading-none uppercase tracking-tight ${
+                            data.person.gender === "male" 
+                              ? "bg-sky-50 text-sky-700 border-sky-200/60" 
+                              : data.person.gender === "female" 
+                                ? "bg-rose-50 text-rose-700 border-rose-200/60" 
+                                : "bg-stone-50 text-stone-700 border-stone-200/60"
+                          }`}>
+                            {data.person.gender === "male" ? "Rể" : data.person.gender === "female" ? "Dâu" : "Khách"}
+                          </span>
+                        )}
+                      </div>
+
                       <span className="text-[11px] text-stone-500 font-medium truncate flex items-center gap-1">
                         <svg
                           className="size-3 text-stone-400 shrink-0"
@@ -295,6 +321,28 @@ const MindmapNode = memo(
                             <span className="text-[10px] font-bold text-stone-600 truncate max-w-[50px] text-center">
                               {spouseData.person.full_name.split(" ").pop()}
                             </span>
+                            {spouseData.person.is_deceased ? (
+                              <span className="text-[7px] font-bold px-1 py-0.5 rounded-full bg-stone-100 text-stone-400 border border-stone-200/60 leading-none uppercase tracking-tight">
+                                Mất
+                              </span>
+                            ) : (
+                              spouseData.person.birth_year && (
+                                <span className="text-[7px] font-bold px-1 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 leading-none uppercase tracking-tight">
+                                  {new Date().getFullYear() - spouseData.person.birth_year}t
+                                </span>
+                              )
+                            )}
+                            {spouseData.person.is_in_law && (
+                              <span className={`text-[7px] font-bold px-1 py-0.5 rounded-full border leading-none uppercase tracking-tight ${
+                                spouseData.person.gender === "male" 
+                                  ? "bg-sky-50 text-sky-700 border-sky-200/60" 
+                                  : spouseData.person.gender === "female" 
+                                    ? "bg-rose-50 text-rose-700 border-rose-200/60" 
+                                    : "bg-stone-50 text-stone-700 border-stone-200/60"
+                              }`}>
+                                {spouseData.person.gender === "male" ? "Rể" : spouseData.person.gender === "female" ? "Dâu" : "K"}
+                              </span>
+                            )}
                           </button>
                         );
                       })}

@@ -13,13 +13,27 @@ export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   
-  // Chỉ yêu cầu secret nếu nó được định nghĩa trong env
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  // 1. Kiểm tra session để cho phép Admin chạy thủ công từ giao diện
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role === "admin") {
+      isAdmin = true;
+    }
+  }
+
+  // 2. Xác thực: Nếu không phải Admin thì bắt buộc phải có CRON_SECRET (cho Vercel Cron)
+  if (!isAdmin && cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   // 1. Lấy cấu hình VAPID
   const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -56,6 +70,10 @@ export async function GET(request: Request) {
       // Trên Vercel, new Date() mặc định là UTC
       return d.getUTCDate() === currentDate && d.getUTCMonth() === currentMonth;
     });
+
+    console.log(`Cron triggered at ${vnTime.toISOString()} (VN Time)`);
+    console.log(`Checking events for Date: ${currentDate}/${currentMonth + 1}/${currentYear}`);
+    console.log(`Total events found today: ${todayEvents.length}`);
 
     if (todayEvents.length === 0) {
       return NextResponse.json({ message: "No events today" });

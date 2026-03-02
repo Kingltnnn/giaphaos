@@ -109,21 +109,31 @@ export default function FamilyNodeCard({
         >
           {person.full_name}
         </span>
-        {/* {person.birth_order != null && (
-          <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-200/60 leading-none">
-            {person.birth_order === 1 ? "Trưởng" : `Thứ ${person.birth_order}`}
-          </span>
-        )} */}
-        {/* {person.generation != null && (
-          <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200/60 leading-none">
-            Đ.{person.generation}
-          </span>
-        )} */}
-        {/* {isDeceased && (
-          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-md text-[9px] sm:text-[10px] font-bold bg-stone-100 text-stone-400 uppercase tracking-wider border border-stone-200/50">
-            Đã mất
-          </span>
-        )} */}
+        
+        <div className="flex flex-wrap items-center justify-center gap-1">
+          {isDeceased ? (
+            <span className="text-[8px] sm:text-[9px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-400 border border-stone-200/60 leading-none uppercase tracking-tight">
+              Đã mất
+            </span>
+          ) : (
+            person.birth_year && (
+              <span className="text-[8px] sm:text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 leading-none uppercase tracking-tight">
+                {new Date().getFullYear() - person.birth_year} tuổi
+              </span>
+            )
+          )}
+          {person.is_in_law && (
+            <span className={`text-[8px] sm:text-[9px] font-bold px-2 py-0.5 rounded-full border leading-none uppercase tracking-tight ${
+              person.gender === "male" 
+                ? "bg-sky-50 text-sky-700 border-sky-200/60" 
+                : person.gender === "female" 
+                  ? "bg-rose-50 text-rose-700 border-rose-200/60" 
+                  : "bg-stone-50 text-stone-700 border-stone-200/60"
+            }`}>
+              {person.gender === "male" ? "Rể" : person.gender === "female" ? "Dâu" : "Khách"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 3. Role */}
