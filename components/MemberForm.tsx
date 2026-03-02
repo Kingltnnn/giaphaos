@@ -792,11 +792,10 @@ export default function MemberForm({
                     type="button"
                     onClick={async () => {
                       try {
-                        if (cropImageSrc && croppedAreaPixels) {
-                          const croppedFile = await getCroppedImg(
-                            cropImageSrc,
-                            croppedAreaPixels
-                          );
+                        const src = cropImageSrc;
+                        const pixels = croppedAreaPixels;
+                        if (src && pixels) {
+                          const croppedFile = await getCroppedImg(src, pixels);
                           if (croppedFile) {
                             setAvatarFile(croppedFile);
                             setAvatarPreview(URL.createObjectURL(croppedFile));
