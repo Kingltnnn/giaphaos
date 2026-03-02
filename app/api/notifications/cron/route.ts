@@ -11,7 +11,10 @@ import webpush from "web-push";
 export async function GET(request: Request) {
   // Xác thực đơn giản bằng API Key trong header để tránh bị gọi trái phép
   const authHeader = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  
+  // Chỉ yêu cầu secret nếu nó được định nghĩa trong env
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -37,14 +40,21 @@ export async function GET(request: Request) {
     
     const { data: customEvents } = await supabase.from("custom_events").select("*");
 
-    const today = new Date();
-    const currentYear = today.getFullYear();
+    // Lấy thời gian hiện tại theo múi giờ Việt Nam (UTC+7)
+    const now = new Date();
+    const vnTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const currentYear = vnTime.getUTCFullYear();
+    const currentMonth = vnTime.getUTCMonth(); // 0-11
+    const currentDate = vnTime.getUTCDate();
+
     const events = computeEventsForYear(persons || [], customEvents || [], currentYear);
 
-    // Lọc các sự kiện diễn ra hôm nay
+    // Lọc các sự kiện diễn ra hôm nay (theo giờ VN)
     const todayEvents = events.filter(e => {
       const d = e.occurrence;
-      return d.getDate() === today.getDate() && d.getMonth() === today.getMonth();
+      // So sánh ngày và tháng (occurrence được tạo bởi new Date(y, m, d) trong eventHelpers)
+      // Trên Vercel, new Date() mặc định là UTC
+      return d.getUTCDate() === currentDate && d.getUTCMonth() === currentMonth;
     });
 
     if (todayEvents.length === 0) {
@@ -73,8 +83,9 @@ export async function GET(request: Request) {
               sub.subscription,
               JSON.stringify(notif)
             );
-          } catch (err: any) {
-            if (err.statusCode === 410 || err.statusCode === 404) {
+          } catch (err: unknown) {
+            const error = err as { statusCode?: number };
+            if (error.statusCode === 410 || error.statusCode === 404) {
               await supabase.from("push_subscriptions").delete().eq("id", sub.id);
             }
             throw err;
@@ -87,7 +98,8 @@ export async function GET(request: Request) {
       message: `Sent ${notifications.length} notifications to ${subscriptions.length} subscribers`,
       results 
     });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const err = error as Error;
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

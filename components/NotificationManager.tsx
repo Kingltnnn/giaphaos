@@ -31,8 +31,8 @@ export default function NotificationManager() {
     setLoading(true)
     try {
       // Check if added to home screen (iOS requirement)
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream
       
       if (isIOS && !isStandalone) {
         setShowPwaTip(true)
@@ -145,7 +145,29 @@ export default function NotificationManager() {
       </div>
 
       {isSubscribed && (
-        <div className="pt-2 border-t border-stone-100 flex justify-end">
+        <div className="pt-2 border-t border-stone-100 flex justify-end gap-4">
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/notifications/cron')
+                const data = await res.json()
+                if (res.ok) {
+                  if (data.message === "No events today") {
+                    alert('Cron chạy thành công: Hôm nay không có sự kiện nào.')
+                  } else {
+                    alert(`Cron chạy thành công: ${data.message}`)
+                  }
+                } else {
+                  alert(`Lỗi: ${data.error || 'Không xác định'}`)
+                }
+              } catch (e) {
+                alert('Lỗi kết nối server.')
+              }
+            }}
+            className="text-[10px] font-bold text-stone-400 hover:text-blue-600 transition-colors"
+          >
+            Chạy thử Cron (Hôm nay)
+          </button>
           <button
             onClick={async () => {
               try {
