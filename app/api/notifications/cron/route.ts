@@ -1,55 +1,27 @@
 import { computeEventsForYear } from "@/utils/eventHelpers";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 
+/**
+ * CRON JOB: Gửi thông báo đẩy cho các sự kiện diễn ra trong ngày hôm nay.
+ * Có thể được gọi bởi Vercel Cron hoặc một dịch vụ bên thứ ba hàng ngày.
+ */
 export async function GET(request: Request) {
+  // Xác thực đơn giản bằng API Key trong header để tránh bị gọi trái phép
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
   
-  // 1. Khởi tạo Supabase với Service Role Key để vượt qua RLS (chỉ dùng cho tác vụ hệ thống)
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  // 2. Xác thực: Cho phép nếu là Admin đang đăng nhập HOẶC có mã bí mật Cron
-  let isAuthorized = false;
-
-  // Kiểm tra mã bí mật (cho Vercel Cron)
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-    isAuthorized = true;
-  }
-
-  // Nếu chưa có mã bí mật, kiểm tra xem có phải Admin đang nhấn nút thủ công không
-  if (!isAuthorized) {
-    try {
-      const { createClient: createServerClient } = await import("@/utils/supabase/server");
-      const cookieStore = await cookies();
-      const supabase = createServerClient(cookieStore);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-        if (profile?.role === "admin") {
-          isAuthorized = true;
-        }
-      }
-    } catch (e) {
-      console.error("Auth check failed:", e);
-    }
-  }
-
-  if (!isAuthorized && cronSecret) {
+  // Chỉ yêu cầu secret nếu nó được định nghĩa trong env
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 3. Cấu hình VAPID
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
+
+  // 1. Lấy cấu hình VAPID
   const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
   const vapidSubject = process.env.VAPID_SUBJECT;
@@ -61,46 +33,45 @@ export async function GET(request: Request) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
   try {
-    // 4. Lấy dữ liệu bằng supabaseAdmin (vượt qua RLS)
-    const { data: persons } = await supabaseAdmin
+    // 2. Lấy danh sách sự kiện hôm nay
+    const { data: persons } = await supabase
       .from("persons")
       .select("id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, is_deceased");
     
-    const { data: customEvents } = await supabaseAdmin.from("custom_events").select("*");
+    const { data: customEvents } = await supabase.from("custom_events").select("*");
 
     // Lấy thời gian hiện tại theo múi giờ Việt Nam (UTC+7)
     const now = new Date();
-    const vnTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Ho_Chi_Minh" }));
-    const currentYear = vnTime.getFullYear();
-    const currentMonth = vnTime.getMonth(); 
-    const currentDate = vnTime.getDate();
+    const vnTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    const currentYear = vnTime.getUTCFullYear();
+    const currentMonth = vnTime.getUTCMonth(); // 0-11
+    const currentDate = vnTime.getUTCDate();
 
     const events = computeEventsForYear(persons || [], customEvents || [], currentYear);
 
-    // Lọc các sự kiện diễn ra hôm nay
+    // Lọc các sự kiện diễn ra hôm nay (theo giờ VN)
     const todayEvents = events.filter(e => {
       const d = e.occurrence;
-      return d.getDate() === currentDate && d.getMonth() === currentMonth;
+      // So sánh ngày và tháng (occurrence được tạo bởi new Date(y, m, d) trong eventHelpers)
+      // Trên Vercel, new Date() mặc định là UTC
+      return d.getUTCDate() === currentDate && d.getUTCMonth() === currentMonth;
     });
-
-    console.log(`[Cron] VN Time: ${vnTime.toLocaleString()}`);
-    console.log(`[Cron] Checking: ${currentDate}/${currentMonth + 1}`);
-    console.log(`[Cron] Found ${todayEvents.length} events`);
 
     if (todayEvents.length === 0) {
       return NextResponse.json({ message: "No events today" });
     }
 
-    // 5. Lấy danh sách đăng ký thông báo
-    const { data: subscriptions } = await supabaseAdmin.from("push_subscriptions").select("*");
+    // 3. Lấy danh sách đăng ký thông báo
+    const { data: subscriptions } = await supabase.from("push_subscriptions").select("*");
     if (!subscriptions || subscriptions.length === 0) {
-      return NextResponse.json({ message: "No subscribers found in database" });
+      return NextResponse.json({ message: "No subscribers" });
     }
 
-    // 6. Gửi thông báo
+    // 4. Gửi thông báo cho từng sự kiện
     const notifications = todayEvents.map(event => {
       const title = event.type === "birthday" ? "🎂 Sinh nhật" : event.type === "death_anniversary" ? "🕯️ Ngày giỗ" : "📅 Sự kiện gia tộc";
       const body = `${event.personName} — ${event.eventDateLabel}`;
+      
       return { title, body, url: "/dashboard/events" };
     });
 
@@ -108,11 +79,14 @@ export async function GET(request: Request) {
       subscriptions.flatMap(sub => 
         notifications.map(async (notif) => {
           try {
-            await webpush.sendNotification(sub.subscription, JSON.stringify(notif));
+            await webpush.sendNotification(
+              sub.subscription,
+              JSON.stringify(notif)
+            );
           } catch (err: unknown) {
             const error = err as { statusCode?: number };
             if (error.statusCode === 410 || error.statusCode === 404) {
-              await supabaseAdmin.from("push_subscriptions").delete().eq("id", sub.id);
+              await supabase.from("push_subscriptions").delete().eq("id", sub.id);
             }
             throw err;
           }

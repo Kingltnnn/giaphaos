@@ -144,9 +144,8 @@ export default function NotificationManager() {
         </button>
       </div>
 
-      <div className="pt-4 border-t border-stone-100 space-y-3">
-        <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Công cụ kiểm tra (Admin)</p>
-        <div className="flex flex-wrap gap-3">
+      {isSubscribed && (
+        <div className="pt-2 border-t border-stone-100 flex justify-end gap-4">
           <button
             onClick={async () => {
               try {
@@ -154,22 +153,18 @@ export default function NotificationManager() {
                 const data = await res.json()
                 if (res.ok) {
                   if (data.message === "No events today") {
-                    alert('Hệ thống đã kiểm tra: Hôm nay không có sự kiện nào để gửi thông báo.')
+                    alert('Cron chạy thành công: Hôm nay không có sự kiện nào.')
                   } else {
-                    alert(`Thành công: ${data.message}`)
+                    alert(`Cron chạy thành công: ${data.message}`)
                   }
                 } else {
-                  if (res.status === 401) {
-                    alert('Lỗi 401: Bạn đã đặt CRON_SECRET trên Vercel. Nút bấm thủ công này sẽ không hoạt động trừ khi bạn tắt CRON_SECRET hoặc cấu hình Header.')
-                  } else {
-                    alert(`Lỗi: ${data.error || 'Không xác định'}`)
-                  }
+                  alert(`Lỗi: ${data.error || 'Không xác định'}`)
                 }
               } catch {
                 alert('Lỗi kết nối server.')
               }
             }}
-            className="px-3 py-1.5 rounded-lg border border-stone-200 text-[10px] font-bold text-stone-600 hover:bg-stone-50 hover:border-blue-300 hover:text-blue-600 transition-all"
+            className="text-[10px] font-bold text-stone-400 hover:text-blue-600 transition-colors"
           >
             Chạy thử Cron (Hôm nay)
           </button>
@@ -177,21 +172,18 @@ export default function NotificationManager() {
             onClick={async () => {
               try {
                 const res = await fetch('/api/notifications/test', { method: 'POST' })
-                if (res.ok) alert('Đã gửi thông báo thử nghiệm đến thiết bị của bạn!')
-                else alert('Gửi thất bại. Hãy đảm bảo bạn đã nhấn "Bật thông báo" phía trên.')
+                if (res.ok) alert('Đã gửi thông báo thử nghiệm!')
+                else alert('Gửi thất bại. Hãy kiểm tra cấu hình VAPID.')
               } catch {
                 alert('Lỗi kết nối server.')
               }
             }}
-            className="px-3 py-1.5 rounded-lg border border-stone-200 text-[10px] font-bold text-stone-600 hover:bg-stone-50 hover:border-amber-300 hover:text-amber-600 transition-all"
+            className="text-[10px] font-bold text-stone-400 hover:text-amber-600 transition-colors"
           >
             Gửi thông báo thử nghiệm
           </button>
         </div>
-        <p className="text-[9px] text-stone-400 italic">
-          * Lưu ý: Nút &quot;Chạy thử Cron&quot; sẽ gửi thông báo cho TẤT CẢ mọi người nếu hôm nay có sự kiện.
-        </p>
-      </div>
+      )}
 
       <AnimatePresence>
         {showPwaTip && (
