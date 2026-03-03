@@ -791,10 +791,8 @@ export default function MemberForm({
                   <button
                     type="button"
                     onClick={async () => {
+                      if (!cropImageSrc || !croppedAreaPixels) return;
                       try {
-                        if (!cropImageSrc || !croppedAreaPixels) {
-                          return;
-                        }
                         const croppedFile = await getCroppedImg(
                           cropImageSrc,
                           croppedAreaPixels
