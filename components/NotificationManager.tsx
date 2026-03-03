@@ -189,7 +189,7 @@ export default function NotificationManager() {
           </button>
         </div>
         <p className="text-[9px] text-stone-400 italic">
-          * Lưu ý: Nút &quot;Chạy thử Cron&quot; sẽ gửi thông báo cho TẤT CẢ mọi người nếu hôm nay có sự kiện.
+          * Lưu ý: Nút "Chạy thử Cron" sẽ gửi thông báo cho TẤT CẢ mọi người nếu hôm nay có sự kiện.
         </p>
       </div>
 
