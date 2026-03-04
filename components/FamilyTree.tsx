@@ -171,7 +171,6 @@ export default function FamilyTree({
     );
 
   return (
-    {/* Thêm touch-none để chặn hành vi vuốt mặc định của mobile, tránh xung đột */}
     <div className="w-full h-full relative touch-none">
       <TransformWrapper
         initialScale={1}
