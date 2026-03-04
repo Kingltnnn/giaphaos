@@ -791,17 +791,18 @@ export default function MemberForm({
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!cropImageSrc || !croppedAreaPixels) return;
                       try {
-                        const croppedFile = await getCroppedImg(
-                          cropImageSrc,
-                          croppedAreaPixels
-                        );
-                        if (croppedFile) {
-                          setAvatarFile(croppedFile);
-                          setAvatarPreview(URL.createObjectURL(croppedFile));
-                          setIsCropping(false);
-                          setCropImageSrc(null);
+                        if (cropImageSrc && croppedAreaPixels) {
+                          const croppedFile = await getCroppedImg(
+                            cropImageSrc,
+                            croppedAreaPixels
+                          );
+                          if (croppedFile) {
+                            setAvatarFile(croppedFile);
+                            setAvatarPreview(URL.createObjectURL(croppedFile));
+                            setIsCropping(false);
+                            setCropImageSrc(null);
+                          }
                         }
                       } catch (e) {
                         console.error(e);
