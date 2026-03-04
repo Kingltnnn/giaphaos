@@ -131,9 +131,6 @@ export default function FamilyTree({
 
             {data.spouses.length > 0 && (
               <>
-                {/* <div className="mt-6 size-5 sm:w-6 sm:h-6 rounded-full shadow-sm bg-white border border-stone-200 z-20 flex items-center justify-center text-[10px] sm:text-xs">
-                  💍
-                </div> */}
                 {data.spouses.map((spouseData, idx) => (
                   <div key={spouseData.person.id} className="flex relative">
                     <FamilyNodeCard
@@ -174,14 +171,18 @@ export default function FamilyTree({
     );
 
   return (
-    <div className="w-full h-full relative">
+    {/* Thêm touch-none để chặn hành vi vuốt mặc định của mobile, tránh xung đột */}
+    <div className="w-full h-full relative touch-none">
       <TransformWrapper
         initialScale={1}
         minScale={0.1}
         maxScale={3}
         centerOnInit={true}
-        wheel={{ step: 0.1 }}
-        pinch={{ step: 5 }}
+        limitToBounds={false} // Giúp vuốt mượt mà không bị khựng khi chạm viền
+        wheel={{ step: 0.1, smoothStep: 0.005 }}
+        pinch={{ step: 1 }} // Chỉnh step nhỏ lại để pinch-to-zoom trên điện thoại mượt hơn
+        panning={{ velocityDisabled: false }} // Bật quán tính trượt
+        doubleClick={{ disabled: false, step: 0.5 }} // Chạm đúp mượt hơn
       >
         {({ zoomIn, zoomOut, resetTransform, instance }) => (
           <>
@@ -299,7 +300,13 @@ export default function FamilyTree({
               )}
 
             <div className="w-full h-full bg-stone-50 cursor-grab active:cursor-grabbing overflow-hidden">
-              <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
+              <TransformComponent 
+                wrapperStyle={{ 
+                  width: "100%", 
+                  height: "100%",
+                  willChange: "transform" // Bật GPU Acceleration để render mượt hơn
+                }}
+              >
                 {/* We use a style block to inject the CSS logic for the family tree lines */}
                 <style
                   dangerouslySetInnerHTML={{
