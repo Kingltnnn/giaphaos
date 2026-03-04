@@ -7,7 +7,7 @@ import { useDashboard } from "./DashboardContext";
 export type ViewMode = "list" | "tree" | "mindmap";
 
 export default function ViewToggle() {
-  const { view: currentView, setView } = useDashboard();
+  const { view: currentView, setView, setRootId } = useDashboard();
 
   const tabs = [
     { id: "list", label: "Danh sách", icon: <List className="size-3.5" /> },
@@ -22,7 +22,12 @@ export default function ViewToggle() {
         return (
           <button
             key={tab.id}
-            onClick={() => setView(tab.id as ViewMode)}
+            onClick={() => {
+              setView(tab.id as ViewMode);
+              if (tab.id === "tree" || tab.id === "mindmap") {
+                setRootId(null);
+              }
+            }}
             className={`relative px-3 sm:px-4 py-1 sm:py-1.5 text-[11px] font-bold rounded-full transition-colors duration-300 ease-in-out z-10 flex items-center gap-1.5 ${
               isActive
                 ? "text-stone-900"

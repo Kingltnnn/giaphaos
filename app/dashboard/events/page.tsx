@@ -3,7 +3,6 @@ import EventsList from "@/components/EventsList";
 import MemberDetailModal from "@/components/MemberDetailModal";
 import NotificationManager from "@/components/NotificationManager";
 import { createClient } from "@/utils/supabase/server";
-import { CalendarDays } from "lucide-react";
 import { cookies } from "next/headers";
 
 export const metadata = {
@@ -42,32 +41,9 @@ export default async function EventsPage() {
         </div>
 
         <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 space-y-8">
-          <NotificationManager />
-          
-          <div className="bg-white/50 rounded-3xl p-6 border border-stone-200/50 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-blue-100 text-blue-600">
-                  <CalendarDays className="size-5" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-stone-800">Đăng ký Lịch iPhone</h3>
-                  <p className="text-xs text-stone-500">Tự động nhắc nhở trên ứng dụng Lịch</p>
-                </div>
-              </div>
-              <a
-                href="/api/events/calendar"
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-500 text-white hover:bg-blue-600 shadow-sm transition-all"
-              >
-                Tải file .ics
-              </a>
-            </div>
-            <p className="text-[11px] text-stone-500 italic">
-              * Mẹo: Bạn có thể sao chép liên kết này và dán vào phần &quot;Đăng ký lịch&quot; (Add Subscription Calendar) trong cài đặt Lịch của iPhone để tự động cập nhật sự kiện mới.
-            </p>
-          </div>
-
           <EventsList persons={persons ?? []} initialCustomEvents={customEvents ?? []} />
+          
+          <NotificationManager />
         </main>
       </div>
 

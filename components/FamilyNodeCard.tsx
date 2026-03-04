@@ -95,22 +95,24 @@ export default function FamilyNodeCard({
 
       {/* 2. Gender Icon + Name */}
       <div className="flex flex-col items-center justify-center gap-1 w-full px-0.5 sm:px-1 relative z-10">
-        <span
-          className={`text-[10px] sm:text-[11px] md:text-xs font-bold text-center leading-tight line-clamp-2 transition-colors cursor-pointer
-            ${onClickName ? "text-stone-800 group-hover:text-amber-700 hover:underline" : "text-stone-800 group-hover:text-amber-800"}`}
-          title={person.full_name}
-          onClick={(e) => {
-            if (onClickName) {
-              e.stopPropagation();
-              e.preventDefault();
-              onClickName(e);
-            }
-          }}
-        >
-          {person.full_name}
-        </span>
+        <div className="h-7 sm:h-8 flex items-center justify-center w-full">
+          <span
+            className={`text-[10px] sm:text-[11px] md:text-xs font-bold text-center leading-tight line-clamp-2 transition-colors cursor-pointer
+              ${onClickName ? "text-stone-800 group-hover:text-amber-700 hover:underline" : "text-stone-800 group-hover:text-amber-800"}`}
+            title={person.full_name}
+            onClick={(e) => {
+              if (onClickName) {
+                e.stopPropagation();
+                e.preventDefault();
+                onClickName(e);
+              }
+            }}
+          >
+            {person.full_name}
+          </span>
+        </div>
         
-        <div className="flex flex-wrap items-center justify-center gap-1">
+        <div className="flex flex-nowrap items-center justify-center gap-1 h-4 sm:h-5">
           {isDeceased ? (
             <span className="text-[8px] sm:text-[9px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-400 border border-stone-200/60 leading-none uppercase tracking-tight">
               Đã mất

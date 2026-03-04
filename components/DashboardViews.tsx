@@ -36,11 +36,33 @@ export default function DashboardViews({
 
     let finalRootId = rootId;
 
-    // If no rootId is provided, fallback to the earliest created person
+    // If no rootId is provided, fallback to the true root
     if (!finalRootId || !pMap.has(finalRootId)) {
+      // Find all persons who have no parents in the tree
       const rootsFallback = persons.filter((p) => !childIds.has(p.id));
+      
       if (rootsFallback.length > 0) {
-        finalRootId = rootsFallback[0].id;
+        // Prioritize bloodline roots (not in-laws)
+        const bloodlineRoots = rootsFallback.filter((p) => !p.is_in_law);
+        if (bloodlineRoots.length > 0) {
+          // Find the one with the most children to ensure we pick the main patriarch/matriarch
+          let maxChildren = -1;
+          let bestRootId = bloodlineRoots[0].id;
+          
+          for (const root of bloodlineRoots) {
+            const childCount = relationships.filter(
+              (r) => (r.type === "biological_child" || r.type === "adopted_child") && r.person_a === root.id
+            ).length;
+            
+            if (childCount > maxChildren) {
+              maxChildren = childCount;
+              bestRootId = root.id;
+            }
+          }
+          finalRootId = bestRootId;
+        } else {
+          finalRootId = rootsFallback[0].id;
+        }
       } else if (persons.length > 0) {
         finalRootId = persons[0].id; // ultimate fallback
       }

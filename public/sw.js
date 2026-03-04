@@ -6,6 +6,7 @@ self.addEventListener('push', function (event) {
       icon: data.icon || '/icons/icon-192x192.png',
       badge: '/icons/badge-72x72.png',
       vibrate: [100, 50, 100],
+      sound: 'default', // Yêu cầu hệ điều hành phát âm thanh mặc định
       data: {
         url: data.url || '/'
       }
