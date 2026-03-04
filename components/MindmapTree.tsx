@@ -19,6 +19,8 @@ import { useDashboard } from "./DashboardContext";
 import DefaultAvatar from "./DefaultAvatar";
 import ExportButton from "./ExportButton";
 
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+
 interface MindmapTreeProps {
   personsMap: Map<string, Person>;
   relationships: Relationship[];
@@ -401,12 +403,6 @@ export default function MindmapTree({
     ts: number;
   } | null>(null);
   const filtersRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [isPressed, setIsPressed] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
-  const lastTouchDistance = useRef<number | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -430,75 +426,6 @@ export default function MindmapTree({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsPressed(true);
-    setDragStart({ x: e.pageX, y: e.pageY });
-    if (containerRef.current) {
-      setScrollStart({
-        left: containerRef.current.scrollLeft,
-        top: containerRef.current.scrollTop,
-      });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isPressed || !containerRef.current) return;
-    const dx = e.pageX - dragStart.x;
-    const dy = e.pageY - dragStart.y;
-    containerRef.current.scrollLeft = scrollStart.left - dx;
-    containerRef.current.scrollTop = scrollStart.top - dy;
-  };
-
-  const handleMouseUpOrLeave = () => {
-    setIsPressed(false);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const distance = Math.hypot(
-        e.touches[0].pageX - e.touches[1].pageX,
-        e.touches[0].pageY - e.touches[1].pageY
-      );
-      lastTouchDistance.current = distance;
-    } else if (e.touches.length === 1) {
-      setIsPressed(true);
-      setDragStart({ x: e.touches[0].pageX, y: e.touches[0].pageY });
-      if (containerRef.current) {
-        setScrollStart({
-          left: containerRef.current.scrollLeft,
-          top: containerRef.current.scrollTop,
-        });
-      }
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && lastTouchDistance.current !== null) {
-      e.preventDefault();
-      const distance = Math.hypot(
-        e.touches[0].pageX - e.touches[1].pageX,
-        e.touches[0].pageY - e.touches[1].pageY
-      );
-      const delta = distance / lastTouchDistance.current;
-      setScale((s) => Math.min(Math.max(s * delta, 0.3), 2));
-      lastTouchDistance.current = distance;
-    } else if (e.touches.length === 1 && isPressed && containerRef.current) {
-      const dx = e.touches[0].pageX - dragStart.x;
-      const dy = e.touches[0].pageY - dragStart.y;
-      containerRef.current.scrollLeft = scrollStart.left - dx;
-      containerRef.current.scrollTop = scrollStart.top - dy;
-    }
-  };
-
-  const handleTouchEnd = () => {
-    lastTouchDistance.current = null;
-    setIsPressed(false);
-  };
-
-  const handleZoomIn = () => setScale((s) => Math.min(s + 0.1, 2));
-  const handleZoomOut = () => setScale((s) => Math.max(s - 0.1, 0.3));
-  const handleResetZoom = () => setScale(1);
 
   const ctx: MindmapContextData = useMemo(
     () => ({
@@ -537,180 +464,184 @@ export default function MindmapTree({
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className={`w-full h-full relative p-4 sm:p-6 lg:p-8 min-h-[calc(100vh-140px)] flex justify-start lg:justify-center overflow-auto bg-stone-50/30 ${isPressed ? "cursor-grabbing" : "cursor-grab"}`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUpOrLeave}
-      onMouseLeave={handleMouseUpOrLeave}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* Grouped Toolbar (Expand/Collapse, Filters, Export) Portaled to Header */}
-      {portalNode &&
-        createPortal(
-          <div
-            className="flex flex-wrap justify-center items-center gap-2 w-max"
-            ref={filtersRef}
-          >
-            {/* Zoom Controls - Hidden on mobile, use pinch to zoom */}
-            <div className="hidden sm:flex items-center bg-white/80 backdrop-blur-md shadow-sm border border-stone-200/60 rounded-full overflow-hidden transition-opacity h-10">
-              <button
-                onClick={handleZoomOut}
-                className="px-3 h-full hover:bg-stone-100/50 text-stone-600 transition-colors disabled:opacity-50"
-                title="Thu nhỏ"
-                disabled={scale <= 0.3}
-              >
-                <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
-                </svg>
-              </button>
-              <button
-                onClick={handleResetZoom}
-                className="px-2 h-full hover:bg-stone-100/50 text-stone-600 transition-colors text-xs font-medium min-w-[50px] text-center border-x border-stone-200/50"
-                title="Đặt lại"
-              >
-                {Math.round(scale * 100)}%
-              </button>
-              <button
-                onClick={handleZoomIn}
-                className="px-3 h-full hover:bg-stone-100/50 text-stone-600 transition-colors disabled:opacity-50"
-                title="Phóng to"
-                disabled={scale >= 2}
-              >
-                <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Expand/Collapse Controls */}
-            <div className="flex items-center bg-white/80 backdrop-blur-md shadow-sm border border-stone-200/60 rounded-full overflow-hidden transition-opacity h-10">
-              <button
-                onClick={() =>
-                  setExpandSignal({ type: "collapse", ts: Date.now() })
-                }
-                className="px-3 md:px-4 h-full flex items-center gap-1.5 hover:bg-stone-100/50 text-stone-600 transition-colors font-medium"
-                title="Thu gọn tất cả"
-              >
-                <ChevronsDownUp className="size-4" />
-                <span className="hidden sm:inline text-xs sm:text-sm">
-                  Thu gọn
-                </span>
-              </button>
-              <button
-                onClick={() =>
-                  setExpandSignal({ type: "expand", ts: Date.now() })
-                }
-                className="px-3 md:px-4 h-full flex items-center gap-1.5 hover:bg-stone-100/50 text-stone-600 transition-colors font-medium border-r border-stone-200/50"
-                title="Mở rộng tất cả"
-              >
-                <ChevronsUpDown className="size-4" />
-                <span className="hidden sm:inline text-xs sm:text-sm">
-                  Mở rộng
-                </span>
-              </button>
-            </div>
-
-            {/* Filters */}
-            <div className="relative">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-2 px-4 h-10 rounded-full font-semibold text-sm shadow-sm border transition-all duration-300 ${
-                  showFilters
-                    ? "bg-amber-100/90 text-amber-800 border-amber-200"
-                    : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
-                }`}
-              >
-                <Filter className="size-4" />
-                <span className="hidden sm:inline">Lọc hiển thị</span>
-              </button>
-
-              <AnimatePresence>
-                {showFilters && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-xl shadow-xl border border-stone-200/60 rounded-2xl p-4 flex flex-col gap-3 z-50"
-                  >
-                    <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
-                      HIỂN THỊ
-                    </div>
-                    <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
-                      <input
-                        type="checkbox"
-                        checked={!showAvatar}
-                        onChange={(e) => setShowAvatar(!e.target.checked)}
-                        className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
-                      />
-                      <ImageIcon className="size-4 text-stone-400" /> Ẩn ảnh đại
-                      diện
-                    </label>
-
-                    <div className="h-px w-full bg-stone-100 my-1 font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2"></div>
-                    <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
-                      LỌC DỮ LIỆU
-                    </div>
-                    <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
-                      <input
-                        type="checkbox"
-                        checked={hideSpouses}
-                        onChange={(e) => setHideSpouses(e.target.checked)}
-                        className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
-                      />
-                      Ẩn dâu/rể
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
-                      <input
-                        type="checkbox"
-                        checked={hideMales}
-                        onChange={(e) => setHideMales(e.target.checked)}
-                        className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
-                      />
-                      Ẩn nam
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
-                      <input
-                        type="checkbox"
-                        checked={hideFemales}
-                        onChange={(e) => setHideFemales(e.target.checked)}
-                        className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
-                      />
-                      Ẩn nữ
-                    </label>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Export Button */}
-            {canEdit && <ExportButton />}
-          </div>,
-          portalNode,
-        )}
-
-      {/* Root Container */}
-      <div
-        id="export-container"
-        className="font-sans min-w-max pb-20 p-10 px-0 sm:px-8 transition-transform duration-200 origin-top"
-        style={{
-          transform: `scale(${scale})`,
-        }}
+    <div className="w-full h-full relative">
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.1}
+        maxScale={3}
+        centerOnInit={true}
+        wheel={{ step: 0.1 }}
+        pinch={{ step: 5 }}
       >
-        {roots.map((root, index) => (
-          <MindmapNode
-            key={root.id}
-            personId={root.id}
-            level={0}
-            isLast={index === roots.length - 1}
-            ctx={ctx}
-          />
-        ))}
-      </div>
+        {({ zoomIn, zoomOut, resetTransform, instance }) => (
+          <>
+            {/* Grouped Toolbar (Expand/Collapse, Filters, Export) Portaled to Header */}
+            {portalNode &&
+              createPortal(
+                <div
+                  className="flex flex-wrap justify-center items-center gap-2 w-max"
+                  ref={filtersRef}
+                >
+                  {/* Zoom Controls - Hidden on mobile, use pinch to zoom */}
+                  <div className="hidden sm:flex items-center bg-white/80 backdrop-blur-md shadow-sm border border-stone-200/60 rounded-full overflow-hidden transition-opacity h-10">
+                    <button
+                      onClick={() => zoomOut()}
+                      className="px-3 h-full hover:bg-stone-100/50 text-stone-600 transition-colors disabled:opacity-50"
+                      title="Thu nhỏ"
+                      disabled={instance.transformState.scale <= 0.1}
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => resetTransform()}
+                      className="px-2 h-full hover:bg-stone-100/50 text-stone-600 transition-colors text-xs font-medium min-w-[50px] text-center border-x border-stone-200/50"
+                      title="Đặt lại"
+                    >
+                      {Math.round(instance.transformState.scale * 100)}%
+                    </button>
+                    <button
+                      onClick={() => zoomIn()}
+                      className="px-3 h-full hover:bg-stone-100/50 text-stone-600 transition-colors disabled:opacity-50"
+                      title="Phóng to"
+                      disabled={instance.transformState.scale >= 3}
+                    >
+                      <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Expand/Collapse Controls */}
+                  <div className="flex items-center bg-white/80 backdrop-blur-md shadow-sm border border-stone-200/60 rounded-full overflow-hidden transition-opacity h-10">
+                    <button
+                      onClick={() =>
+                        setExpandSignal({ type: "collapse", ts: Date.now() })
+                      }
+                      className="px-3 md:px-4 h-full flex items-center gap-1.5 hover:bg-stone-100/50 text-stone-600 transition-colors font-medium"
+                      title="Thu gọn tất cả"
+                    >
+                      <ChevronsDownUp className="size-4" />
+                      <span className="hidden sm:inline text-xs sm:text-sm">
+                        Thu gọn
+                      </span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        setExpandSignal({ type: "expand", ts: Date.now() })
+                      }
+                      className="px-3 md:px-4 h-full flex items-center gap-1.5 hover:bg-stone-100/50 text-stone-600 transition-colors font-medium border-r border-stone-200/50"
+                      title="Mở rộng tất cả"
+                    >
+                      <ChevronsUpDown className="size-4" />
+                      <span className="hidden sm:inline text-xs sm:text-sm">
+                        Mở rộng
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Filters */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowFilters(!showFilters)}
+                      className={`flex items-center gap-2 px-4 h-10 rounded-full font-semibold text-sm shadow-sm border transition-all duration-300 ${
+                        showFilters
+                          ? "bg-amber-100/90 text-amber-800 border-amber-200"
+                          : "bg-white/80 text-stone-600 border-stone-200/60 hover:bg-white hover:text-stone-900 hover:shadow-md backdrop-blur-md"
+                      }`}
+                    >
+                      <Filter className="size-4" />
+                      <span className="hidden sm:inline">Lọc hiển thị</span>
+                    </button>
+
+                    <AnimatePresence>
+                      {showFilters && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          className="absolute top-full right-0 mt-2 w-48 bg-white/95 backdrop-blur-xl shadow-xl border border-stone-200/60 rounded-2xl p-4 flex flex-col gap-3 z-50"
+                        >
+                          <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
+                            HIỂN THỊ
+                          </div>
+                          <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+                            <input
+                              type="checkbox"
+                              checked={!showAvatar}
+                              onChange={(e) => setShowAvatar(!e.target.checked)}
+                              className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
+                            />
+                            <ImageIcon className="size-4 text-stone-400" /> Ẩn ảnh đại
+                            diện
+                          </label>
+
+                          <div className="h-px w-full bg-stone-100 my-1 font-bold text-stone-400 uppercase tracking-wider flex items-center gap-2"></div>
+                          <div className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
+                            LỌC DỮ LIỆU
+                          </div>
+                          <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+                            <input
+                              type="checkbox"
+                              checked={hideSpouses}
+                              onChange={(e) => setHideSpouses(e.target.checked)}
+                              className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
+                            />
+                            Ẩn dâu/rể
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+                            <input
+                              type="checkbox"
+                              checked={hideMales}
+                              onChange={(e) => setHideMales(e.target.checked)}
+                              className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
+                            />
+                            Ẩn nam
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer hover:text-stone-900 transition-colors select-none">
+                            <input
+                              type="checkbox"
+                              checked={hideFemales}
+                              onChange={(e) => setHideFemales(e.target.checked)}
+                              className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer size-4"
+                            />
+                            Ẩn nữ
+                          </label>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Export Button */}
+                  {canEdit && <ExportButton />}
+                </div>,
+                portalNode,
+              )}
+
+            <div className="w-full h-full bg-stone-50/30 cursor-grab active:cursor-grabbing overflow-hidden">
+              <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }}>
+                {/* Root Container */}
+                <div
+                  id="export-container"
+                  className="font-sans min-w-max pb-20 p-10 px-0 sm:px-8"
+                >
+                  {roots.map((root, index) => (
+                    <MindmapNode
+                      key={root.id}
+                      personId={root.id}
+                      level={0}
+                      isLast={index === roots.length - 1}
+                      ctx={ctx}
+                    />
+                  ))}
+                </div>
+              </TransformComponent>
+            </div>
+          </>
+        )}
+      </TransformWrapper>
     </div>
   );
 }
