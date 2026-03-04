@@ -178,7 +178,6 @@ export default function FamilyTree({
         }}
         panning={{
           velocityDisabled: false,
-          velocityEqualToMove: true,
         }}
         zoomAnimation={{
           animationTime: 200,
