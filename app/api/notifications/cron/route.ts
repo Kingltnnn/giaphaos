@@ -3,9 +3,10 @@ import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import webpush from "web-push";
+import { Solar } from "lunar-javascript";
 
 /**
- * CRON JOB: Gửi thông báo đẩy cho các sự kiện diễn ra trong ngày hôm nay.
+ * CRON JOB: Gửi thông báo đẩy cho các sự kiện diễn ra trong vòng 7 ngày tới.
  * Có thể được gọi bởi Vercel Cron hoặc một dịch vụ bên thứ ba hàng ngày.
  */
 export async function GET(request: Request) {
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
   try {
-    // 2. Lấy danh sách sự kiện hôm nay
+    // 2. Lấy danh sách sự kiện
     const { data: persons } = await supabase
       .from("persons")
       .select("id, full_name, birth_year, birth_month, birth_day, death_year, death_month, death_day, is_deceased");
@@ -60,23 +61,26 @@ export async function GET(request: Request) {
     const currentYear = vnTime.getUTCFullYear();
     const currentMonth = vnTime.getUTCMonth(); // 0-11
     const currentDate = vnTime.getUTCDate();
+    
+    // Tạo đối tượng Date chỉ có ngày tháng năm của hôm nay để tính khoảng cách
+    const todayDateOnly = new Date(Date.UTC(currentYear, currentMonth, currentDate));
 
     const events = computeEventsForYear(persons || [], customEvents || [], currentYear);
 
-    // Lọc các sự kiện diễn ra hôm nay (theo giờ VN)
-    const todayEvents = events.filter(e => {
-      const d = e.occurrence;
-      // So sánh ngày và tháng (occurrence được tạo bởi new Date(y, m, d) trong eventHelpers)
-      // Trên Vercel, new Date() mặc định là UTC
-      return d.getUTCDate() === currentDate && d.getUTCMonth() === currentMonth;
-    });
+    // Lọc các sự kiện diễn ra trong vòng 7 ngày tới
+    const upcomingEvents = events.map(e => {
+      const eventDateOnly = new Date(Date.UTC(e.occurrence.getFullYear(), e.occurrence.getMonth(), e.occurrence.getDate()));
+      const diffTime = eventDateOnly.getTime() - todayDateOnly.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      return { ...e, diffDays };
+    }).filter(e => e.diffDays >= 0 && e.diffDays <= 7);
 
     console.log(`Cron triggered at ${vnTime.toISOString()} (VN Time)`);
     console.log(`Checking events for Date: ${currentDate}/${currentMonth + 1}/${currentYear}`);
-    console.log(`Total events found today: ${todayEvents.length}`);
+    console.log(`Total upcoming events found (0-7 days): ${upcomingEvents.length}`);
 
-    if (todayEvents.length === 0) {
-      return NextResponse.json({ message: "No events today" });
+    if (upcomingEvents.length === 0) {
+      return NextResponse.json({ message: "No upcoming events in the next 7 days" });
     }
 
     // 3. Lấy danh sách đăng ký thông báo
@@ -86,9 +90,31 @@ export async function GET(request: Request) {
     }
 
     // 4. Gửi thông báo cho từng sự kiện
-    const notifications = todayEvents.map(event => {
-      const title = event.type === "birthday" ? "🎂 Sinh nhật" : event.type === "death_anniversary" ? "🕯️ Ngày giỗ" : "📅 Sự kiện gia tộc";
-      const body = `${event.personName} — ${event.eventDateLabel}`;
+    const notifications = upcomingEvents.map(event => {
+      const diffDays = event.diffDays;
+      const timeRemaining = diffDays === 0 ? "Hôm nay" : `Còn ${diffDays} ngày`;
+      
+      const solarDateStr = `${event.occurrence.getDate().toString().padStart(2, '0')}/${(event.occurrence.getMonth() + 1).toString().padStart(2, '0')}/${event.occurrence.getFullYear()}`;
+      
+      const solar = Solar.fromYmd(event.occurrence.getFullYear(), event.occurrence.getMonth() + 1, event.occurrence.getDate());
+      const lunar = solar.getLunar();
+      const lunarDateStr = `${lunar.getDay().toString().padStart(2, '0')}/${lunar.getMonth().toString().padStart(2, '0')} ÂL`;
+      
+      let eventName = "";
+      let icon = "";
+      if (event.type === "birthday") {
+        eventName = `Sinh nhật ${event.personName}`;
+        icon = "🎂";
+      } else if (event.type === "death_anniversary") {
+        eventName = `Ngày giỗ ${event.personName}`;
+        icon = "🕯️";
+      } else {
+        eventName = `Sự kiện: ${event.personName}`;
+        icon = "📅";
+      }
+      
+      const title = `${icon} Sắp tới: ${eventName}`;
+      const body = `Tên sự kiện: ${eventName}\nNgày dương: ${solarDateStr}\nNgày âm: ${lunarDateStr}\nThời gian còn: ${timeRemaining}`;
       
       return { title, body, url: "/dashboard/events" };
     });
